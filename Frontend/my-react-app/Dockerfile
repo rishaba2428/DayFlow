@@ -6,13 +6,12 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# Run stage — listen on fixed 8080 (matches Railway public port)
-FROM nginx:alpine
-COPY --from=build /app/dist /usr/share/nginx/html
-COPY nginx.default.conf /etc/nginx/nginx.default.conf
-COPY start-nginx.sh /start-nginx.sh
-RUN sed -i 's/\r$//' /start-nginx.sh && chmod +x /start-nginx.sh \
-  && rm -f /etc/nginx/conf.d/default.conf
+# Run stage — must listen on Railway $PORT
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=build /app/dist ./dist
+COPY server.js ./server.js
 
-EXPOSE 80 8080
-ENTRYPOINT ["/start-nginx.sh"]
+ENV PORT=8080
+EXPOSE 8080
+CMD ["node", "server.js"]
