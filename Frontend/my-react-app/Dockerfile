@@ -14,5 +14,5 @@ COPY start-nginx.sh /start-nginx.sh
 RUN sed -i 's/\r$//' /start-nginx.sh && chmod +x /start-nginx.sh \
   && rm -f /etc/nginx/conf.d/default.conf
 
-EXPOSE 8080
+EXPOSE 80 8080
 ENTRYPOINT ["/start-nginx.sh"]
