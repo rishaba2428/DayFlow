@@ -1,4 +1,4 @@
-# Build stage
+# Build
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -6,12 +6,11 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# Run stage — must listen on Railway $PORT
+# Run — listen on Railway-provided $PORT only
 FROM node:20-alpine
 WORKDIR /app
+RUN npm install -g serve@14.2.4
 COPY --from=build /app/dist ./dist
-COPY server.js ./server.js
-
 ENV PORT=8080
 EXPOSE 8080
-CMD ["node", "server.js"]
+CMD ["sh", "-c", "echo Listening on PORT=$PORT && serve -s dist -l tcp://0.0.0.0:$PORT"]
