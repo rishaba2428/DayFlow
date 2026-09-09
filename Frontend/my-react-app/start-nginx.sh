@@ -1,42 +1,20 @@
 #!/bin/sh
 set -e
 
-PORT="${PORT:-8080}"
+CONF=/etc/nginx/conf.d/default.conf
+cp /etc/nginx/nginx.default.conf "$CONF"
+
 HOST="${BACKEND_HOST:-}"
 HOST="${HOST#http://}"
 HOST="${HOST#https://}"
 
-use_proxy=1
-if [ -z "$HOST" ]; then
-  use_proxy=0
-fi
-# Unresolved Railway placeholders or trailing colon only
-if echo "$HOST" | grep -q '[\${]'; then
-  use_proxy=0
-fi
-if echo "$HOST" | grep -q ':$'; then
-  use_proxy=0
-fi
-
-if [ "$use_proxy" -eq 1 ]; then
-  export PORT HOST
-  envsubst '${PORT} ${HOST}' \
-    < /etc/nginx/dayflow.conf.template \
-    > /etc/nginx/conf.d/default.conf
-  echo "nginx proxy -> ${HOST}"
+if [ -n "$HOST" ] && ! echo "$HOST" | grep -q '[\${]' && ! echo "$HOST" | grep -q ':$'; then
+  sed -i "s|BACKEND_PLACEHOLDER|${HOST}|g" "$CONF"
+  echo "API proxy -> ${HOST}"
 else
-  cat > /etc/nginx/conf.d/default.conf <<EOF
-server {
-    listen ${PORT};
-    server_name localhost;
-    root /usr/share/nginx/html;
-    index index.html;
-    location / {
-        try_files \$uri \$uri/ /index.html;
-    }
-}
-EOF
-  echo "WARN: BACKEND_HOST invalid ('${HOST}') â€” static only"
+  # Remove API proxy block so bad upstream cannot break boot
+  sed -i '/location \/api\//,/^    }/d' "$CONF"
+  echo "WARN: no valid BACKEND_HOST â€” UI only"
 fi
 
 nginx -t
