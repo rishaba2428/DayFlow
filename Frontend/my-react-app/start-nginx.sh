@@ -6,13 +6,17 @@ HOST="${BACKEND_HOST:-}"
 HOST="${HOST#http://}"
 HOST="${HOST#https://}"
 
-# Invalid / unresolved Railway placeholders â†’ static only
 use_proxy=1
-case "$HOST" in
-  ""|*"$"*|*"{"*|*}"|*":")
-    use_proxy=0
-    ;;
-esac
+if [ -z "$HOST" ]; then
+  use_proxy=0
+fi
+# Unresolved Railway placeholders or trailing colon only
+if echo "$HOST" | grep -q '[\${]'; then
+  use_proxy=0
+fi
+if echo "$HOST" | grep -q ':$'; then
+  use_proxy=0
+fi
 
 if [ "$use_proxy" -eq 1 ]; then
   export PORT HOST
@@ -34,9 +38,6 @@ server {
 EOF
   echo "WARN: BACKEND_HOST invalid ('${HOST}') â€” static only"
 fi
-
-# Remove any auto-generated broken configs from nginx image
-rm -f /etc/nginx/conf.d/default.conf.bak 2>/dev/null || true
 
 nginx -t
 exec nginx -g 'daemon off;'
