@@ -3,16 +3,25 @@ set -e
 
 PORT="${PORT:-8080}"
 HOST="${BACKEND_HOST:-}"
-
-# Strip scheme if someone pasted a full URL
 HOST="${HOST#http://}"
 HOST="${HOST#https://}"
 
-# If Railway var didn't resolve (still has $ or {) or empty — serve UI without API proxy
+# Invalid / unresolved Railway placeholders â†’ static only
+use_proxy=1
 case "$HOST" in
-  ""|*"$"*|*"{"*|*}*|*":")
-    echo "WARN: BACKEND_HOST missing/invalid ('$HOST') — serving frontend only"
-    cat > /etc/nginx/conf.d/default.conf <<EOF
+  ""|*"$"*|*"{"*|*}"|*":")
+    use_proxy=0
+    ;;
+esac
+
+if [ "$use_proxy" -eq 1 ]; then
+  export PORT HOST
+  envsubst '${PORT} ${HOST}' \
+    < /etc/nginx/dayflow.conf.template \
+    > /etc/nginx/conf.d/default.conf
+  echo "nginx proxy -> ${HOST}"
+else
+  cat > /etc/nginx/conf.d/default.conf <<EOF
 server {
     listen ${PORT};
     server_name localhost;
@@ -23,15 +32,11 @@ server {
     }
 }
 EOF
-    ;;
-  *)
-    export PORT HOST
-    envsubst '${PORT} ${HOST}' \
-      < /etc/nginx/templates/default.conf.template \
-      > /etc/nginx/conf.d/default.conf
-    ;;
-esac
+  echo "WARN: BACKEND_HOST invalid ('${HOST}') â€” static only"
+fi
 
-echo "Starting nginx on port ${PORT}, backend=${HOST:-none}"
+# Remove any auto-generated broken configs from nginx image
+rm -f /etc/nginx/conf.d/default.conf.bak 2>/dev/null || true
+
 nginx -t
 exec nginx -g 'daemon off;'
