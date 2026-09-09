@@ -8,17 +8,16 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# Run stage
+# Run stage — static site + optional API proxy
 FROM nginx:alpine
 RUN apk add --no-cache gettext
 
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY start-nginx.sh /start-nginx.sh
+RUN chmod +x /start-nginx.sh && sed -i 's/\r$//' /start-nginx.sh
 
 ENV PORT=8080
-ENV BACKEND_HOST=backend:8080
-
 EXPOSE 8080
 
-# Inline start avoids Windows CRLF breaking a separate shell script
-CMD ["/bin/sh", "-c", "PORT=${PORT:-8080}; HOST=${BACKEND_HOST:-backend:8080}; HOST=${HOST#http://}; HOST=${HOST#https://}; export PORT HOST; envsubst '${PORT} ${HOST}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf; nginx -t && exec nginx -g 'daemon off;'"]
+CMD ["/start-nginx.sh"]
